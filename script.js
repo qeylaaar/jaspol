@@ -115,12 +115,13 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
    ============================================= */
 (function () {
   /* -------- JSONBin.io config -------- */
-  const BIN_ID     = '6a340146da38895dfed7a63e';
-  const ACCESS_KEY = '$2a$10$1wABFmWagJ.KYY2mN65AC.SF1kPFKGdx7ze3xE1TJzrKAbZgdGklS';
+  const BIN_ID     = '6a340428da38895dfed7ba9e';
+  const ACCESS_KEY = '$2a$10$4C1pRXTNtgyhoQEVgOLofOq6QjG0ExvBG9M31G/KGIQTMf26Ly.gq';
   const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+  // JSONBin: X-Master-Key diperlukan untuk operasi tulis (PUT)
   const HEADERS    = {
     'Content-Type': 'application/json',
-    'X-Access-Key': ACCESS_KEY,
+    'X-Master-Key': ACCESS_KEY,
   };
 
   const PER_PAGE = 6; // 3 kolom × 2 baris
@@ -165,7 +166,8 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
 
   /* -------- JSONBin API -------- */
   async function fetchTestimonials() {
-    const res  = await fetch(`${BIN_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+    // Bin public: baca tanpa auth header
+    const res  = await fetch(`${BIN_URL}/latest`);
     const json = await res.json();
     return json.record?.testimonials || [];
   }
