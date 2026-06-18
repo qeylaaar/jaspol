@@ -111,38 +111,31 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
 
 
 /* =============================================
-   TESTIMONI – localStorage + Carousel 3×2
+   TESTIMONI – JSONBin.io Cloud Storage + Carousel 3×2
    ============================================= */
 (function () {
-  const STORAGE_KEY = 'jaspol_testimoni';
-  const PER_PAGE = 6; // 3 columns × 2 rows
+  /* -------- JSONBin.io config -------- */
+  const BIN_ID     = '6a340146da38895dfed7a63e';
+  const ACCESS_KEY = '$2a$10$1wABFmWagJ.KYY2mN65AC.SF1kPFKGdx7ze3xE1TJzrKAbZgdGklS';
+  const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+  const HEADERS    = {
+    'Content-Type': 'application/json',
+    'X-Access-Key': ACCESS_KEY,
+  };
 
-  /* ---------- helpers ---------- */
-  const $ = (id) => document.getElementById(id);
+  const PER_PAGE = 6; // 3 kolom × 2 baris
+  const $        = (id) => document.getElementById(id);
 
-  function loadTestimonials() {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-      return [];
-    }
-  }
-
-  function saveTestimonials(data) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  }
-
+  /* -------- helpers -------- */
   function formatDate(iso) {
-    const d = new Date(iso);
-    return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    return new Date(iso).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
   }
-
-  function starsHtml(n) {
-    return '★'.repeat(n) + '☆'.repeat(5 - n);
-  }
-
-  function avatarLetter(name) {
-    return name.trim().charAt(0).toUpperCase() || '?';
+  function starsHtml(n) { return '★'.repeat(n) + '☆'.repeat(5 - n); }
+  function avatarLetter(name) { return name.trim().charAt(0).toUpperCase() || '?'; }
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
   function buildCard(t, idx) {
@@ -165,50 +158,60 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
     return card;
   }
 
-  function escHtml(str) {
-    return String(str)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+  /* -------- state -------- */
+  let testimonials = [];
+  let currentPage  = 0;
+  function totalPages() { return Math.max(1, Math.ceil(testimonials.length / PER_PAGE)); }
+
+  /* -------- JSONBin API -------- */
+  async function fetchTestimonials() {
+    const res  = await fetch(`${BIN_URL}/latest`, { headers: { 'X-Access-Key': ACCESS_KEY } });
+    const json = await res.json();
+    return json.record?.testimonials || [];
   }
 
-  /* ---------- state ---------- */
-  let testimonials = loadTestimonials();
-  let currentPage = 0;
-
-  function totalPages() {
-    return Math.max(1, Math.ceil(testimonials.length / PER_PAGE));
+  async function saveTestimonials(data) {
+    await fetch(BIN_URL, {
+      method: 'PUT',
+      headers: HEADERS,
+      body: JSON.stringify({ testimonials: data }),
+    });
   }
 
-  /* ---------- render ---------- */
+  /* -------- render -------- */
+  function setLoading(on) {
+    const grid  = $('testiGrid');
+    const empty = $('testiEmpty');
+    const wrap  = $('testiCarouselWrap');
+    if (on) {
+      grid.innerHTML = '<p class="testi-loading">⏳ Memuat testimoni...</p>';
+      empty.style.display = 'none';
+      wrap.style.display  = 'flex';
+    }
+  }
+
   function render() {
     const grid = $('testiGrid');
-    const nav = $('testiNav');
+    const nav  = $('testiNav');
     const empty = $('testiEmpty');
-    const wrap = $('testiCarouselWrap');
+    const wrap  = $('testiCarouselWrap');
 
     grid.innerHTML = '';
-    nav.innerHTML = '';
+    nav.innerHTML  = '';
 
     if (testimonials.length === 0) {
       empty.style.display = 'flex';
-      wrap.style.display = 'none';
+      wrap.style.display  = 'none';
       return;
     }
 
     empty.style.display = 'none';
-    wrap.style.display = 'flex';
+    wrap.style.display  = 'flex';
 
-    // clamp page
     currentPage = Math.min(currentPage, totalPages() - 1);
-
-    const start = currentPage * PER_PAGE;
-    const slice = testimonials.slice(start, start + PER_PAGE);
-
+    const slice = testimonials.slice(currentPage * PER_PAGE, currentPage * PER_PAGE + PER_PAGE);
     slice.forEach((t, idx) => grid.appendChild(buildCard(t, idx)));
 
-    // dots
     for (let i = 0; i < totalPages(); i++) {
       const dot = document.createElement('button');
       dot.className = 'testi-dot' + (i === currentPage ? ' active' : '');
@@ -218,48 +221,41 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
     }
   }
 
-  /* ---------- form logic ---------- */
+  /* -------- star picker -------- */
   let selectedRating = 5;
-
-  // star picker
-  const stars = document.querySelectorAll('.star');
+  const stars       = document.querySelectorAll('.star');
   const ratingInput = $('testiRating');
 
   function updateStars(val) {
-    selectedRating = val;
+    selectedRating    = val;
     ratingInput.value = val;
-    stars.forEach((s) => {
-      s.classList.toggle('active', Number(s.dataset.star) <= val);
-    });
+    stars.forEach((s) => s.classList.toggle('active', Number(s.dataset.star) <= val));
   }
-
-  // default: all 5 active
   updateStars(5);
 
   stars.forEach((star) => {
     star.addEventListener('click', () => updateStars(Number(star.dataset.star)));
-    star.addEventListener('mouseenter', () => {
-      stars.forEach((s) => s.classList.toggle('active', Number(s.dataset.star) <= Number(star.dataset.star)));
-    });
+    star.addEventListener('mouseenter', () =>
+      stars.forEach((s) => s.classList.toggle('active', Number(s.dataset.star) <= Number(star.dataset.star)))
+    );
   });
-
   $('starPicker').addEventListener('mouseleave', () => updateStars(selectedRating));
 
-  // char counter
-  const msgArea = $('testiMsg');
+  /* -------- char counter -------- */
+  const msgArea  = $('testiMsg');
   const charCount = $('charCount');
   msgArea.addEventListener('input', () => { charCount.textContent = msgArea.value.length; });
 
-  // submit
-  $('testiForm').addEventListener('submit', (e) => {
+  /* -------- submit -------- */
+  $('testiForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const nameEl = $('testiName');
-    const msgEl = $('testiMsg');
-    let valid = true;
+    const msgEl  = $('testiMsg');
+    const btn    = $('testiSubmit');
+    let valid    = true;
 
     [nameEl, msgEl].forEach((el) => el.classList.remove('error'));
-
     if (!nameEl.value.trim()) { nameEl.classList.add('error'); valid = false; }
     if (!msgEl.value.trim())  { msgEl.classList.add('error');  valid = false; }
     if (!valid) return;
@@ -273,25 +269,51 @@ fabTop.addEventListener('click', () => smoothScrollTo(0));
       date:    new Date().toISOString(),
     };
 
+    // Optimistic UI – tampil dulu
     testimonials.unshift(entry);
-    saveTestimonials(testimonials);
     currentPage = 0;
     render();
-
-    // reset form
     e.target.reset();
     charCount.textContent = '0';
     updateStars(5);
 
-    // success feedback
-    const btn = $('testiSubmit');
-    const feedback = document.createElement('span');
-    feedback.className = 'testi-success';
-    feedback.textContent = '✓ Testimoni berhasil ditambahkan!';
-    btn.insertAdjacentElement('afterend', feedback);
-    setTimeout(() => feedback.remove(), 3500);
+    // Disable tombol selama simpan
+    btn.disabled    = true;
+    btn.textContent = 'Menyimpan...';
+
+    try {
+      await saveTestimonials(testimonials);
+      const feedback = document.createElement('span');
+      feedback.className   = 'testi-success';
+      feedback.textContent = '✓ Testimoni berhasil ditambahkan!';
+      btn.insertAdjacentElement('afterend', feedback);
+      setTimeout(() => feedback.remove(), 3500);
+    } catch {
+      // Rollback jika gagal
+      testimonials.shift();
+      render();
+      const feedback = document.createElement('span');
+      feedback.className   = 'testi-success';
+      feedback.style.color = '#dc2626';
+      feedback.textContent = '✗ Gagal menyimpan. Coba lagi.';
+      btn.insertAdjacentElement('afterend', feedback);
+      setTimeout(() => feedback.remove(), 4000);
+    } finally {
+      btn.disabled    = false;
+      btn.textContent = 'Kirim Testimoni';
+    }
   });
 
-  // initial render
-  render();
+  /* -------- init: load dari cloud -------- */
+  setLoading(true);
+  fetchTestimonials()
+    .then((data) => {
+      testimonials = data;
+      render();
+    })
+    .catch(() => {
+      // fallback: tampilkan empty state jika gagal fetch
+      testimonials = [];
+      render();
+    });
 })();
